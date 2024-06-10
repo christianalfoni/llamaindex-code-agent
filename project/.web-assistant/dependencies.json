@@ -1,0 +1,6 @@
+{
+  "firebase": "^10.12.2",
+  "react": "^18.2.0",
+  "react-dom": "^18.2.0",
+  "react-states": "^8.3.7"
+}
