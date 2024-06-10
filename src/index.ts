@@ -73,24 +73,16 @@ async function main() {
           required: [],
         },
       }),
-      FunctionTool.from(
-        () => [
-          {
-            name: "react-states",
-            description: "Explicit states for predictable user experiences",
-          },
-        ],
-        {
-          name: "getProjectDependencies",
-          description:
-            "Use this function to get a list of dependencies and their descriptions",
-          parameters: {
-            type: "object",
-            properties: {},
-            required: [],
-          },
-        }
-      ),
+      FunctionTool.from(() => dependencyRAG.getDependencies(workspacePath), {
+        name: "getProjectDependencies",
+        description:
+          "Use this function to get a list of dependencies and their descriptions",
+        parameters: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      }),
     ],
   });
 

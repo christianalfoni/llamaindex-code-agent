@@ -4,7 +4,8 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/index.js\""
+    "start": "tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/index.js\"",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
