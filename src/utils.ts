@@ -2,6 +2,7 @@
 import parseGitignore from "gitignore-globs";
 import { glob } from "glob";
 import * as path from "path";
+import * as fs from "node:fs";
 
 export const WEB_ASSISTANT_FOLDER_NAME = ".web-assistant";
 
@@ -145,4 +146,14 @@ export class Emitter<T> {
   dispose(): void {
     this.registeredListeners = new Set();
   }
+}
+
+export function writeToNestedFolder(filePath: string, content: string): void {
+  const folderPath = path.dirname(filePath);
+
+  // Create nested directories if they don't exist
+  fs.mkdirSync(folderPath, { recursive: true });
+
+  // Write content to the file
+  fs.writeFileSync(filePath, content);
 }
