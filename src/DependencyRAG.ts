@@ -19,7 +19,18 @@ const GPT_4o_INPUT_PRICE = 5;
 const GPT_4o_OUTPUT_PRICE = 15;
 
 export class DependencyRAG {
-  constructor(public index: VectorStoreIndex, public allFilePaths: string[]) {}
+  constructor(
+    public workspacePath: string,
+    public index: VectorStoreIndex,
+    public allFilePaths: string[]
+  ) {}
+  async getDependencies() {
+    const packageJson = await readFile(
+      path.join(this.workspacePath, "package.json")
+    );
+
+    return Object.keys(JSON.parse(packageJson).dependencies);
+  }
   async createQueryEngineTool() {
     const retriever = await this.index.asRetriever({
       similarityTopK: 10,
@@ -32,7 +43,7 @@ export class DependencyRAG {
     return new QueryEngineTool({
       queryEngine,
       metadata: {
-        name: "dependency_documentation_tool",
+        name: "dependency_rag_tool",
         description: `This tool has documentation for all dependencies in the project`,
       },
     });
@@ -96,7 +107,7 @@ export class DependencyRAG {
         storageContext,
       });
 
-      index.docStore.addDocuments(documents, true);
+      await Promise.all(documents.map((document) => index.insert(document)));
     } catch (error) {
       index = await VectorStoreIndex.fromDocuments(documents, {
         storageContext,
@@ -114,7 +125,7 @@ export class DependencyRAG {
       JSON.stringify(packageJson.dependencies, null, 2)
     );
 
-    return new DependencyRAG(index, dependencies);
+    return new DependencyRAG(workspacePath, index, dependencies);
   }
 }
 
