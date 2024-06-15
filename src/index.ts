@@ -2,6 +2,7 @@ import {
   FunctionTool,
   OpenAI as LIOpenAI,
   OpenAIAgent,
+  QueryEngineTool,
   Settings,
 } from "llamaindex";
 import * as path from "path";
@@ -18,10 +19,30 @@ Settings.llm = new LIOpenAI({
 });
 
 Settings.callbackManager.on("llm-tool-call", (event) => {
-  console.log(event.detail.payload);
+  const toolCall = event.detail.payload.toolCall;
+
+  switch (toolCall.name) {
+    case "readFileContent": {
+      console.log("TOOL_CALL - readFileContent: " + toolCall.input.filepath);
+      break;
+    }
+    case "writeFileContent": {
+      console.log("TOOL_CALL - writeFileContent: " + toolCall.input.filepath);
+      break;
+    }
+    default: {
+      console.log("TOOL_CALL - RAG tool: " + toolCall.input.query);
+    }
+  }
 });
 Settings.callbackManager.on("llm-tool-result", (event) => {
-  console.log(event.detail.payload);
+  const toolResult = event.detail.payload.toolResult;
+
+  if (toolResult.tool instanceof QueryEngineTool) {
+    console.log(event.detail.payload.toolResult.output);
+  }
+
+  console.log("===");
 });
 
 const workspacePath = path.join(process.cwd(), "project");
@@ -30,66 +51,60 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-async function main() {
-  /*
-  const queryEngine = SubQuestionQueryEngine.fromDefaults({
-    queryEngineTools: [, dependencyTool],
-  });
-  */
+const readFileTool = FunctionTool.from(
+  ({ filepath }: { filepath: string }) =>
+    fs.readFileSync(path.join(workspacePath, filepath)).toString(),
+  {
+    name: "readFileContent",
+    description: "Use this function to read the contents of a file",
+    parameters: {
+      type: "object",
+      properties: {
+        filepath: {
+          type: "string",
+          description: "The path of the file",
+        },
+      },
+      required: ["filepath"],
+    },
+  }
+);
 
+const writeFileTool = FunctionTool.from(
+  ({ filepath, content }: { filepath: string; content: string }) => {
+    writeToNestedFolder(path.join(workspacePath, filepath), content);
+    return "OK";
+  },
+  {
+    name: "writeFileContent",
+    description: "Use this function to write the contents of a file",
+    parameters: {
+      type: "object",
+      properties: {
+        filepath: {
+          type: "string",
+          description: "The path of the file",
+        },
+        content: {
+          type: "string",
+          description: "The content of the file",
+        },
+      },
+      required: ["filepath", "content"],
+    },
+  }
+);
+
+async function main() {
   const agentResponse = await superAgent();
 
-  console.log(agentResponse.sources);
-  console.log(agentResponse.response);
-  console.log("DONE!!!");
+  console.log("=======================================");
+  console.log(agentResponse.response.message.content);
 }
 
 async function shittyAgent() {
   const agent = new OpenAIAgent({
-    tools: [
-      FunctionTool.from(
-        ({ filepath }: { filepath: string }) =>
-          fs.readFileSync(path.join(workspacePath, filepath)).toString(),
-        {
-          name: "readFileContent",
-          description: "Use this function to read the contents of a file",
-          parameters: {
-            type: "object",
-            properties: {
-              filepath: {
-                type: "string",
-                description: "The path of the file",
-              },
-            },
-            required: ["filepath"],
-          },
-        }
-      ),
-      FunctionTool.from(
-        ({ filepath, content }: { filepath: string; content: string }) => {
-          writeToNestedFolder(path.join(workspacePath, filepath), content);
-          return "OK";
-        },
-        {
-          name: "writeFileContent",
-          description: "Use this function to write the contents of a file",
-          parameters: {
-            type: "object",
-            properties: {
-              filepath: {
-                type: "string",
-                description: "The path of the file",
-              },
-              content: {
-                type: "string",
-                description: "The content of the file",
-              },
-            },
-            required: ["filepath", "content"],
-          },
-        }
-      ),
-    ],
+    tools: [readFileTool, writeFileTool],
   });
 
   const { query } = await prompts({
@@ -114,51 +129,7 @@ async function simpleAgent() {
   const [codeTool] = await Promise.all([codeRAG.createQueryEngineTool()]);
 
   const agent = new OpenAIAgent({
-    tools: [
-      codeTool,
-      FunctionTool.from(
-        ({ filepath }: { filepath: string }) =>
-          fs.readFileSync(path.join(workspacePath, filepath)).toString(),
-        {
-          name: "readFileContent",
-          description: "Use this function to read the contents of a file",
-          parameters: {
-            type: "object",
-            properties: {
-              filepath: {
-                type: "string",
-                description: "The path of the file",
-              },
-            },
-            required: ["filepath"],
-          },
-        }
-      ),
-      FunctionTool.from(
-        ({ filepath, content }: { filepath: string; content: string }) => {
-          writeToNestedFolder(path.join(workspacePath, filepath), content);
-          return "OK";
-        },
-        {
-          name: "writeFileContent",
-          description: "Use this function to write the contents of a file",
-          parameters: {
-            type: "object",
-            properties: {
-              filepath: {
-                type: "string",
-                description: "The path of the file",
-              },
-              content: {
-                type: "string",
-                description: "The content of the file",
-              },
-            },
-            required: ["filepath", "content"],
-          },
-        }
-      ),
-    ],
+    tools: [codeTool, readFileTool, writeFileTool],
   });
 
   const { query } = await prompts({
@@ -191,52 +162,7 @@ async function superAgent() {
   ]);
 
   const agent = new OpenAIAgent({
-    tools: [
-      codeTool,
-      dependencyTool,
-      FunctionTool.from(
-        ({ filepath }: { filepath: string }) =>
-          fs.readFileSync(path.join(workspacePath, filepath)).toString(),
-        {
-          name: "readFileContent",
-          description: "Use this function to read the contents of a file",
-          parameters: {
-            type: "object",
-            properties: {
-              filepath: {
-                type: "string",
-                description: "The path of the file",
-              },
-            },
-            required: ["filepath"],
-          },
-        }
-      ),
-      FunctionTool.from(
-        ({ filepath, content }: { filepath: string; content: string }) => {
-          writeToNestedFolder(path.join(workspacePath, filepath), content);
-          return "OK";
-        },
-        {
-          name: "writeFileContent",
-          description: "Use this function to write the contents of a file",
-          parameters: {
-            type: "object",
-            properties: {
-              filepath: {
-                type: "string",
-                description: "The path of the file",
-              },
-              content: {
-                type: "string",
-                description: "The content of the file",
-              },
-            },
-            required: ["filepath", "content"],
-          },
-        }
-      ),
-    ],
+    tools: [codeTool, dependencyTool, readFileTool, writeFileTool],
   });
 
   const { query } = await prompts({
